@@ -1,14 +1,14 @@
 # Prediction Markets API
 
-Real-time prediction market odds and probabilities from Polymarket. Browse active markets, get detailed odds on specific events, and discover trending bets -- all via x402 micropayments.
+Real-time prediction market odds and probabilities from Polymarket and Kalshi. Browse active markets, get detailed odds on specific events, and discover trending bets -- all via x402 micropayments. Merges data from both platforms so agents get the most complete view of market sentiment.
 
 ## What It Does / Endpoints
 
 | Endpoint | Price | Description |
 |----------|-------|-------------|
-| `POST /api/markets` | $0.005 | List active prediction markets with odds, volume, categories |
-| `POST /api/odds` | $0.005 | Detailed odds for a specific market (by ID or search query) |
-| `POST /api/trending` | $0.003 | Top trending markets ranked by 24h volume |
+| `POST /api/markets` | $0.005 | List active prediction markets with odds, volume, categories from both Polymarket and Kalshi |
+| `POST /api/odds` | $0.005 | Detailed odds for a specific market (by ID or search query) -- searches both platforms |
+| `POST /api/trending` | $0.003 | Top trending markets ranked by volume from both sources |
 
 ## Example Request / Response
 
@@ -33,14 +33,36 @@ curl -X POST https://prediction-markets-production.up.railway.app/api/markets \
       "liquidity": 890000,
       "endDate": "2028-11-06T00:00:00Z",
       "category": "politics",
-      "active": true
+      "active": true,
+      "source": "polymarket"
+    },
+    {
+      "id": "PRES-2028-DEM",
+      "question": "Will a Democrat win the 2028 presidential election?",
+      "outcomes": ["Yes", "No"],
+      "outcomePrices": { "Yes": 0.55, "No": 0.45 },
+      "volume": 8200000,
+      "volume24h": 0,
+      "liquidity": 0,
+      "endDate": "2028-11-06T00:00:00Z",
+      "category": "politics",
+      "active": true,
+      "source": "kalshi"
     }
   ],
   "count": 5,
   "sort": "volume",
   "category": "politics",
-  "source": "polymarket"
+  "source": "polymarket+kalshi"
 }
+```
+
+Filter by platform:
+
+```bash
+curl -X POST https://prediction-markets-production.up.railway.app/api/markets \
+  -H "Content-Type: application/json" \
+  -d '{"source": "kalshi", "limit": 5}'
 ```
 
 ### Get Odds (Search by Query)
@@ -63,7 +85,8 @@ curl -X POST https://prediction-markets-production.up.railway.app/api/odds \
   "endDate": "2026-12-31T00:00:00Z",
   "category": "crypto",
   "active": true,
-  "source": "polymarket"
+  "source": "polymarket",
+  "matchedFrom": 3
 }
 ```
 
@@ -87,19 +110,33 @@ curl -X POST https://prediction-markets-production.up.railway.app/api/trending \
       "totalVolume": 12500000,
       "category": "politics",
       "endDate": "2026-07-31T00:00:00Z",
-      "active": true
+      "active": true,
+      "source": "polymarket"
+    },
+    {
+      "id": "FED-RATE-JUL26",
+      "question": "Will the Fed cut rates in July 2026?",
+      "probability": 0.71,
+      "outcomePrices": { "Yes": 0.71, "No": 0.29 },
+      "volume24h": 0,
+      "totalVolume": 5400000,
+      "category": "politics",
+      "endDate": "2026-07-31T00:00:00Z",
+      "active": true,
+      "source": "kalshi"
     }
   ],
   "count": 5,
-  "source": "polymarket"
+  "source": "polymarket+kalshi"
 }
 ```
 
 ## Use Cases
 
-- **Election odds**: Get real-time probabilities on political outcomes backed by real money
+- **Election odds**: Get real-time probabilities on political outcomes backed by real money from both crypto-native (Polymarket) and CFTC-regulated (Kalshi) platforms
 - **Crypto predictions**: Check market consensus on price targets, ETF approvals, protocol upgrades
 - **Event forecasting**: Find the crowd-sourced probability of any major world event
+- **Cross-platform comparison**: Compare odds between Polymarket and Kalshi for the same events
 - **Research & analysis**: Use prediction market data as a signal for decision-making
 - **News impact**: See how breaking events shift market probabilities in real time
 
@@ -118,9 +155,9 @@ Add to your Claude Desktop or Cursor MCP config:
 ```
 
 Tools available via MCP:
-- `prediction_list_markets` -- Browse active markets by category and sort
-- `prediction_get_market_odds` -- Get detailed odds by market ID or search query
-- `prediction_trending_markets` -- Discover trending markets by volume
+- `prediction_list_markets` -- Browse active markets by category, sort, and platform (Polymarket or Kalshi)
+- `prediction_get_market_odds` -- Get detailed odds by market ID or search query (searches both platforms)
+- `prediction_trending_markets` -- Discover trending markets by volume from both sources
 
 ## Payment
 

@@ -52,6 +52,84 @@ async function fetchGammaMarkets(params: Record<string, string>): Promise<GammaM
   }
 }
 
+// ─── Kalshi API ───────────────────────────────────────────────────────────
+
+const KALSHI_BASE = "https://api.elections.kalshi.com/trade-api/v2";
+
+interface KalshiMarket {
+  ticker: string;
+  title: string;
+  subtitle: string;
+  yes_ask: number;
+  no_ask: number;
+  volume: number;
+  close_time: string;
+  status: string;
+  category: string;
+}
+
+async function fetchKalshiMarkets(limit = 20): Promise<KalshiMarket[]> {
+  const cacheKey = `kalshi:raw:${limit}`;
+  const hit = cached<KalshiMarket[]>(cacheKey);
+  if (hit) return hit;
+
+  try {
+    const url = `${KALSHI_BASE}/markets?limit=${limit}&status=open`;
+    const resp = await fetch(url, {
+      headers: { "Accept": "application/json" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!resp.ok) throw new Error(`Kalshi API ${resp.status}: ${resp.statusText}`);
+    const data = await resp.json() as { markets: KalshiMarket[] };
+    const markets = data.markets || [];
+    setCache(cacheKey, markets);
+    return markets;
+  } catch (e: any) {
+    console.error("[kalshi] fetch error:", e.message);
+    return []; // graceful fallback -- return empty so Polymarket data still works
+  }
+}
+
+function formatKalshiMarket(m: KalshiMarket) {
+  const yesPrice = m.yes_ask != null ? m.yes_ask / 100 : 0;
+  const noPrice = m.no_ask != null ? m.no_ask / 100 : 0;
+  return {
+    id: m.ticker,
+    question: m.title + (m.subtitle ? ` -- ${m.subtitle}` : ""),
+    outcomes: ["Yes", "No"],
+    outcomePrices: { Yes: Math.round(yesPrice * 10000) / 10000, No: Math.round(noPrice * 10000) / 10000 },
+    volume: m.volume || 0,
+    volume24h: 0, // Kalshi public API doesn't expose 24h volume
+    liquidity: 0, // not available in public API
+    endDate: m.close_time || null,
+    startDate: null,
+    category: mapKalshiCategory(m.category || guessCategory(m.title)),
+    active: m.status === "open",
+    slug: m.ticker,
+    source: "kalshi" as const,
+  };
+}
+
+function formatKalshiMarketDetail(m: KalshiMarket) {
+  const base = formatKalshiMarket(m);
+  return {
+    ...base,
+    description: m.subtitle || null,
+  };
+}
+
+function mapKalshiCategory(cat: string): string {
+  const c = cat.toLowerCase();
+  if (/politic|elect|congress|senate/.test(c)) return "politics";
+  if (/crypto|bitcoin|ethereum/.test(c)) return "crypto";
+  if (/sport|nba|nfl|mlb/.test(c)) return "sports";
+  if (/science|tech|ai|climate/.test(c)) return "science";
+  if (/culture|entertainment|movie/.test(c)) return "culture";
+  // Kalshi categories can be specific like "Economics", "Finance" etc.
+  if (/econ|financ|fed|rate/.test(c)) return "politics";
+  return "other";
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function parseOutcomes(market: GammaMarket): { outcomes: string[]; outcomePrices: Record<string, number> } {
@@ -92,6 +170,7 @@ function formatMarket(market: GammaMarket) {
     category: guessCategory(market.question),
     active: market.active && !market.closed,
     slug: market.slug,
+    source: "polymarket" as const,
   };
 }
 
@@ -106,32 +185,56 @@ export function registerRoutes(app: Hono) {
       const category = (body as any).category || null;
       const limit = Math.min(Math.max(parseInt((body as any).limit) || 20, 1), 50);
       const sort = (body as any).sort || "volume";
+      const sourceFilter = (body as any).source || null; // "polymarket", "kalshi", or null for both
 
-      // Build sort params
+      // Build sort params for Polymarket
       let order = "volume";
       let ascending = "false";
       if (sort === "newest") { order = "startDate"; ascending = "false"; }
       else if (sort === "closing_soon") { order = "endDate"; ascending = "true"; }
 
-      const cacheKey = `markets:${category}:${limit}:${sort}`;
+      const cacheKey = `markets:${category}:${limit}:${sort}:${sourceFilter}`;
       const hit = cached<any>(cacheKey);
       if (hit) return c.json(hit);
 
       // Fetch more than needed so we can filter by category
       const fetchLimit = category ? Math.min(limit * 3, 100) : limit;
-      const markets = await fetchGammaMarkets({
-        limit: String(fetchLimit),
-        active: "true",
-        closed: "false",
-        order,
-        ascending,
-      });
 
-      let formatted = markets.map(formatMarket);
+      // Fetch from both sources in parallel (skip source if filtered out)
+      const [polymarketRaw, kalshiRaw] = await Promise.all([
+        sourceFilter === "kalshi"
+          ? Promise.resolve([])
+          : fetchGammaMarkets({ limit: String(fetchLimit), active: "true", closed: "false", order, ascending }).catch(() => []),
+        sourceFilter === "polymarket"
+          ? Promise.resolve([])
+          : fetchKalshiMarkets(fetchLimit).catch(() => []),
+      ]);
+
+      let formatted = [
+        ...polymarketRaw.map(formatMarket),
+        ...kalshiRaw.map(formatKalshiMarket),
+      ];
 
       // Filter by category if specified
       if (category) {
         formatted = formatted.filter((m) => m.category === category);
+      }
+
+      // Sort merged results
+      if (sort === "volume") {
+        formatted.sort((a, b) => b.volume - a.volume);
+      } else if (sort === "newest") {
+        formatted.sort((a, b) => {
+          const da = a.startDate || a.endDate || "";
+          const db = b.startDate || b.endDate || "";
+          return db.localeCompare(da);
+        });
+      } else if (sort === "closing_soon") {
+        formatted.sort((a, b) => {
+          const da = a.endDate || "9999";
+          const db = b.endDate || "9999";
+          return da.localeCompare(db);
+        });
       }
 
       formatted = formatted.slice(0, limit);
@@ -141,14 +244,14 @@ export function registerRoutes(app: Hono) {
         count: formatted.length,
         sort,
         category: category || "all",
-        source: "polymarket",
+        source: sourceFilter || "polymarket+kalshi",
         timestamp: new Date().toISOString(),
       };
 
       setCache(cacheKey, result);
       return c.json(result);
     } catch (e: any) {
-      return c.json({ error: e.message, source: "polymarket", timestamp: new Date().toISOString() }, 502);
+      return c.json({ error: e.message, source: "polymarket+kalshi", timestamp: new Date().toISOString() }, 502);
     }
   });
 
@@ -169,39 +272,59 @@ export function registerRoutes(app: Hono) {
         const hit = cached<any>(cacheKey);
         if (hit) return c.json(hit);
 
-        // Gamma API supports text search via slug-like matching
-        // Fetch a batch and filter client-side
-        const markets = await fetchGammaMarkets({
-          limit: "50",
-          active: "true",
-          closed: "false",
-          order: "volume",
-          ascending: "false",
-        });
+        // Fetch from both sources in parallel
+        const [polymarketRaw, kalshiRaw] = await Promise.all([
+          fetchGammaMarkets({ limit: "50", active: "true", closed: "false", order: "volume", ascending: "false" }).catch(() => []),
+          fetchKalshiMarkets(50).catch(() => []),
+        ]);
 
         const queryLower = query.toLowerCase();
-        const matched = markets.filter((m) =>
+
+        // Search Polymarket
+        const polyMatched = polymarketRaw.filter((m) =>
           m.question.toLowerCase().includes(queryLower) ||
           (m.slug && m.slug.toLowerCase().includes(queryLower.replace(/\s+/g, "-")))
         );
 
-        if (matched.length === 0) {
+        // Search Kalshi
+        const kalshiMatched = kalshiRaw.filter((m) =>
+          m.title.toLowerCase().includes(queryLower) ||
+          m.ticker.toLowerCase().includes(queryLower) ||
+          (m.subtitle && m.subtitle.toLowerCase().includes(queryLower))
+        );
+
+        if (polyMatched.length === 0 && kalshiMatched.length === 0) {
           return c.json({
             error: `No markets found matching "${query}"`,
             suggestion: "Try broader terms like 'bitcoin', 'trump', 'fed rates'",
-            source: "polymarket",
+            source: "polymarket+kalshi",
             timestamp: new Date().toISOString(),
           }, 404);
         }
 
-        // Return the best match (highest volume among matches)
-        const best = matched.sort((a, b) => parseFloat(b.volume || "0") - parseFloat(a.volume || "0"))[0];
-        const detail = formatMarketDetail(best);
+        // Find best match across both sources by volume
+        let bestResult: any = null;
+        let bestVolume = -1;
+
+        if (polyMatched.length > 0) {
+          const best = polyMatched.sort((a, b) => parseFloat(b.volume || "0") - parseFloat(a.volume || "0"))[0];
+          const vol = parseFloat(best.volume || "0");
+          if (vol > bestVolume) {
+            bestVolume = vol;
+            bestResult = { ...formatMarketDetail(best), source: "polymarket" };
+          }
+        }
+
+        if (kalshiMatched.length > 0) {
+          const best = kalshiMatched.sort((a, b) => (b.volume || 0) - (a.volume || 0))[0];
+          if ((best.volume || 0) > bestVolume) {
+            bestResult = { ...formatKalshiMarketDetail(best), source: "kalshi" };
+          }
+        }
 
         const result = {
-          ...detail,
-          matchedFrom: matched.length,
-          source: "polymarket",
+          ...bestResult,
+          matchedFrom: polyMatched.length + kalshiMatched.length,
           timestamp: new Date().toISOString(),
         };
 
@@ -254,23 +377,24 @@ export function registerRoutes(app: Hono) {
     try {
       const body = await c.req.json().catch(() => ({}));
       const limit = Math.min(Math.max(parseInt((body as any).limit) || 10, 1), 30);
+      const sourceFilter = (body as any).source || null; // "polymarket", "kalshi", or null for both
 
-      const cacheKey = `trending:${limit}`;
+      const cacheKey = `trending:${limit}:${sourceFilter}`;
       const hit = cached<any>(cacheKey);
       if (hit) return c.json(hit);
 
-      // Fetch markets sorted by volume (proxy for trending)
-      const markets = await fetchGammaMarkets({
-        limit: String(limit),
-        active: "true",
-        closed: "false",
-        order: "volume",
-        ascending: "false",
-      });
+      // Fetch from both sources in parallel
+      const [polymarketRaw, kalshiRaw] = await Promise.all([
+        sourceFilter === "kalshi"
+          ? Promise.resolve([])
+          : fetchGammaMarkets({ limit: String(limit), active: "true", closed: "false", order: "volume", ascending: "false" }).catch(() => []),
+        sourceFilter === "polymarket"
+          ? Promise.resolve([])
+          : fetchKalshiMarkets(limit).catch(() => []),
+      ]);
 
-      const trending = markets.map((m) => {
+      const polyTrending = polymarketRaw.map((m) => {
         const { outcomePrices } = parseOutcomes(m);
-        // Leading probability = highest outcome price
         const probability = Math.max(...Object.values(outcomePrices));
         return {
           id: m.conditionId || m.id,
@@ -283,20 +407,45 @@ export function registerRoutes(app: Hono) {
           endDate: m.endDate || null,
           active: m.active && !m.closed,
           slug: m.slug,
+          source: "polymarket" as const,
         };
       });
 
+      const kalshiTrending = kalshiRaw.map((m) => {
+        const yesPrice = m.yes_ask != null ? m.yes_ask / 100 : 0;
+        const noPrice = m.no_ask != null ? m.no_ask / 100 : 0;
+        const probability = Math.max(yesPrice, noPrice);
+        return {
+          id: m.ticker,
+          question: m.title + (m.subtitle ? ` -- ${m.subtitle}` : ""),
+          probability: Math.round(probability * 10000) / 10000,
+          outcomePrices: { Yes: Math.round(yesPrice * 10000) / 10000, No: Math.round(noPrice * 10000) / 10000 },
+          volume24h: 0,
+          totalVolume: m.volume || 0,
+          category: mapKalshiCategory(m.category || guessCategory(m.title)),
+          endDate: m.close_time || null,
+          active: m.status === "open",
+          slug: m.ticker,
+          source: "kalshi" as const,
+        };
+      });
+
+      // Merge and sort by volume
+      const allTrending = [...polyTrending, ...kalshiTrending]
+        .sort((a, b) => b.totalVolume - a.totalVolume)
+        .slice(0, limit);
+
       const result = {
-        trending,
-        count: trending.length,
-        source: "polymarket",
+        trending: allTrending,
+        count: allTrending.length,
+        source: sourceFilter || "polymarket+kalshi",
         timestamp: new Date().toISOString(),
       };
 
       setCache(cacheKey, result);
       return c.json(result);
     } catch (e: any) {
-      return c.json({ error: e.message, source: "polymarket", timestamp: new Date().toISOString() }, 502);
+      return c.json({ error: e.message, source: "polymarket+kalshi", timestamp: new Date().toISOString() }, 502);
     }
   });
 }
@@ -319,5 +468,6 @@ function formatMarketDetail(market: GammaMarket) {
     category: guessCategory(market.question),
     active: market.active && !market.closed,
     slug: market.slug,
+    source: "polymarket" as const,
   };
 }
