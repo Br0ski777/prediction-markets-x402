@@ -54,6 +54,52 @@ Do NOT use for crypto price data -- use token_get_price instead. Do NOT use for 
         },
         required: [],
       },
+      outputSchema: {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query"
+            },
+            "results": {
+              "type": "number",
+              "description": "Number of markets found"
+            },
+            "markets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "question": {
+                    "type": "string"
+                  },
+                  "probability": {
+                    "type": "number"
+                  },
+                  "volume24h": {
+                    "type": "number"
+                  },
+                  "outcomePrices": {
+                    "type": "object"
+                  }
+                }
+              }
+            },
+            "source": {
+              "type": "string"
+            },
+            "timestamp": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "results",
+            "markets"
+          ]
+        },
     },
     {
       method: "POST",
@@ -94,6 +140,38 @@ Do NOT use for crypto price data -- use token_get_price instead. Do NOT use for 
         },
         required: [],
       },
+      outputSchema: {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Market ID"
+            },
+            "question": {
+              "type": "string"
+            },
+            "probability": {
+              "type": "number"
+            },
+            "outcomePrices": {
+              "type": "object"
+            },
+            "volume24h": {
+              "type": "number"
+            },
+            "source": {
+              "type": "string"
+            },
+            "timestamp": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "question",
+            "probability"
+          ]
+        },
     },
     {
       method: "POST",
@@ -133,6 +211,30 @@ Do NOT use for crypto price data -- use token_get_price instead. Do NOT use for 
         },
         required: [],
       },
+      outputSchema: {
+          "type": "object",
+          "properties": {
+            "results": {
+              "type": "number"
+            },
+            "markets": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "source": {
+              "type": "string"
+            },
+            "timestamp": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "results",
+            "markets"
+          ]
+        },
     },
   ],
 };
