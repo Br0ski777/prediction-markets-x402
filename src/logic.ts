@@ -1,5 +1,20 @@
 import type { Hono } from "hono";
 
+
+// ATXP: requirePayment only fires inside an ATXP context (set by atxpHono middleware).
+// For raw x402 requests, the existing @x402/hono middleware handles the gate.
+// If neither protocol is active (ATXP_CONNECTION unset), tryRequirePayment is a no-op.
+async function tryRequirePayment(price: number): Promise<void> {
+  if (!process.env.ATXP_CONNECTION) return;
+  try {
+    const { requirePayment } = await import("@atxp/server");
+    const BigNumber = (await import("bignumber.js")).default;
+    await requirePayment({ price: BigNumber(price) });
+  } catch (e: any) {
+    if (e?.code === -30402) throw e;
+  }
+}
+
 // ─── Cache ──────────────────────────────────────────────────────────────────
 
 interface CacheEntry { data: any; ts: number }
@@ -180,6 +195,7 @@ export function registerRoutes(app: Hono) {
 
   // POST /api/markets — List active prediction markets
   app.post("/api/markets", async (c) => {
+    await tryRequirePayment(0.005);
     try {
       const body = await c.req.json().catch(() => ({}));
       const category = (body as any).category || null;
@@ -257,6 +273,7 @@ export function registerRoutes(app: Hono) {
 
   // POST /api/odds — Get detailed odds for a specific market
   app.post("/api/odds", async (c) => {
+    await tryRequirePayment(0.005);
     try {
       const body = await c.req.json().catch(() => ({}));
       const marketId = (body as any).marketId || null;
@@ -374,6 +391,7 @@ export function registerRoutes(app: Hono) {
 
   // POST /api/trending — Top trending markets by volume
   app.post("/api/trending", async (c) => {
+    await tryRequirePayment(0.003);
     try {
       const body = await c.req.json().catch(() => ({}));
       const limit = Math.min(Math.max(parseInt((body as any).limit) || 10, 1), 30);
