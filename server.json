@@ -12,7 +12,7 @@
   "remotes": [
     {
       "type": "sse",
-      "url": "https://prediction-markets-x402-production.up.railway.app/mcp"
+      "url": "https://prediction-markets.api.klymax402.com/mcp"
     }
   ]
 }
