@@ -1,172 +1,162 @@
 # Prediction Markets API
 
-Real-time prediction market odds and probabilities from Polymarket and Kalshi. Browse active markets, get detailed odds on specific events, and discover trending bets -- all via x402 micropayments. Merges data from both platforms so agents get the most complete view of market sentiment.
+[![MCP Server](https://img.shields.io/badge/MCP-server-blue)](https://prediction-markets.api.klymax402.com/mcp)
+[![x402](https://img.shields.io/badge/payments-x402-6E56CF)](https://x402.org)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-## What It Does / Endpoints
+Real-time prediction market odds from Polymarket and Kalshi. Active markets, probabilities, volume, categories. The betting intelligence layer agents need for event forecasting. Pay-per-call via [x402](https://x402.org) (USDC on Base L2) -- no API key, no signup, no rate-limit wall.
 
-| Endpoint | Price | Description |
-|----------|-------|-------------|
-| `POST /api/markets` | $0.005 | List active prediction markets with odds, volume, categories from both Polymarket and Kalshi |
-| `POST /api/odds` | $0.005 | Detailed odds for a specific market (by ID or search query) -- searches both platforms |
-| `POST /api/trending` | $0.003 | Top trending markets ranked by volume from both sources |
+Part of the [klymax402](https://klymax402.com) marketplace -- 100 x402 micropayment APIs for AI agents, one wallet, USDC on Base.
 
-## Example Request / Response
+## Quickstart -- MCP
 
-### List Markets
-
-```bash
-curl -X POST https://prediction-markets-production.up.railway.app/api/markets \
-  -H "Content-Type: application/json" \
-  -d '{"category": "politics", "limit": 5, "sort": "volume"}'
-```
-
-```json
-{
-  "markets": [
-    {
-      "id": "0x1234...",
-      "question": "Will Trump win the 2028 presidential election?",
-      "outcomes": ["Yes", "No"],
-      "outcomePrices": { "Yes": 0.42, "No": 0.58 },
-      "volume": 15420000,
-      "volume24h": 234000,
-      "liquidity": 890000,
-      "endDate": "2028-11-06T00:00:00Z",
-      "category": "politics",
-      "active": true,
-      "source": "polymarket"
-    },
-    {
-      "id": "PRES-2028-DEM",
-      "question": "Will a Democrat win the 2028 presidential election?",
-      "outcomes": ["Yes", "No"],
-      "outcomePrices": { "Yes": 0.55, "No": 0.45 },
-      "volume": 8200000,
-      "volume24h": 0,
-      "liquidity": 0,
-      "endDate": "2028-11-06T00:00:00Z",
-      "category": "politics",
-      "active": true,
-      "source": "kalshi"
-    }
-  ],
-  "count": 5,
-  "sort": "volume",
-  "category": "politics",
-  "source": "polymarket+kalshi"
-}
-```
-
-Filter by platform:
-
-```bash
-curl -X POST https://prediction-markets-production.up.railway.app/api/markets \
-  -H "Content-Type: application/json" \
-  -d '{"source": "kalshi", "limit": 5}'
-```
-
-### Get Odds (Search by Query)
-
-```bash
-curl -X POST https://prediction-markets-production.up.railway.app/api/odds \
-  -H "Content-Type: application/json" \
-  -d '{"query": "bitcoin 100k"}'
-```
-
-```json
-{
-  "id": "0xabcd...",
-  "question": "Will Bitcoin reach $100k by December 2026?",
-  "outcomes": ["Yes", "No"],
-  "outcomePrices": { "Yes": 0.65, "No": 0.35 },
-  "volume": 8900000,
-  "volume24h": 120000,
-  "liquidity": 450000,
-  "endDate": "2026-12-31T00:00:00Z",
-  "category": "crypto",
-  "active": true,
-  "source": "polymarket",
-  "matchedFrom": 3
-}
-```
-
-### Trending Markets
-
-```bash
-curl -X POST https://prediction-markets-production.up.railway.app/api/trending \
-  -H "Content-Type: application/json" \
-  -d '{"limit": 5}'
-```
-
-```json
-{
-  "trending": [
-    {
-      "id": "0x5678...",
-      "question": "Will the Fed cut rates in July 2026?",
-      "probability": 0.73,
-      "outcomePrices": { "Yes": 0.73, "No": 0.27 },
-      "volume24h": 890000,
-      "totalVolume": 12500000,
-      "category": "politics",
-      "endDate": "2026-07-31T00:00:00Z",
-      "active": true,
-      "source": "polymarket"
-    },
-    {
-      "id": "FED-RATE-JUL26",
-      "question": "Will the Fed cut rates in July 2026?",
-      "probability": 0.71,
-      "outcomePrices": { "Yes": 0.71, "No": 0.29 },
-      "volume24h": 0,
-      "totalVolume": 5400000,
-      "category": "politics",
-      "endDate": "2026-07-31T00:00:00Z",
-      "active": true,
-      "source": "kalshi"
-    }
-  ],
-  "count": 5,
-  "source": "polymarket+kalshi"
-}
-```
-
-## Use Cases
-
-- **Election odds**: Get real-time probabilities on political outcomes backed by real money from both crypto-native (Polymarket) and CFTC-regulated (Kalshi) platforms
-- **Crypto predictions**: Check market consensus on price targets, ETF approvals, protocol upgrades
-- **Event forecasting**: Find the crowd-sourced probability of any major world event
-- **Cross-platform comparison**: Compare odds between Polymarket and Kalshi for the same events
-- **Research & analysis**: Use prediction market data as a signal for decision-making
-- **News impact**: See how breaking events shift market probabilities in real time
-
-## MCP Integration
-
-Add to your Claude Desktop or Cursor MCP config:
+Add to your MCP client config (Claude Desktop, Cursor, ElizaOS, etc.):
 
 ```json
 {
   "mcpServers": {
     "prediction-markets": {
-      "url": "https://prediction-markets-production.up.railway.app/sse"
+      "url": "https://prediction-markets.api.klymax402.com/mcp"
     }
   }
 }
 ```
 
-Tools available via MCP:
-- `prediction_list_markets` -- Browse active markets by category, sort, and platform (Polymarket or Kalshi)
-- `prediction_get_market_odds` -- Get detailed odds by market ID or search query (searches both platforms)
-- `prediction_trending_markets` -- Discover trending markets by volume from both sources
+## Quickstart -- HTTP (x402)
+
+```bash
+curl -X POST "https://prediction-markets.api.klymax402.com/api/markets" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+# -> 402 Payment Required, with an x402 payment challenge in the response body
+```
+
+Any x402-aware client ([`@x402/fetch`](https://www.npmjs.com/package/@x402/fetch), [`x402-agent-tools`](https://www.npmjs.com/package/x402-agent-tools), ATXP) handles the 402 -> sign -> retry cycle automatically.
+
+## Tools
+
+| Tool | Method | Path | Price | Description |
+|---|---|---|---|---|
+| `prediction_list_markets` | POST | `/api/markets` | $0.005 | List active prediction markets from Polymarket and Kalshi with current odds, volume, and categories. Filter by topic, platform, and sort by volume, newest, or closing soon. |
+| `prediction_get_market_odds` | POST | `/api/odds` | $0.005 | Get detailed odds and trading data for a specific prediction market by ID or search query. Searches both Polymarket and Kalshi. |
+| `prediction_trending_markets` | POST | `/api/trending` | $0.003 | Top trending prediction markets from Polymarket and Kalshi ranked by volume and engagement. |
+
+### `prediction_list_markets`
+
+Use this when you need to browse active prediction markets or find betting odds on real-world events. Returns a list of active markets from Polymarket and Kalshi with current probabilities, trading volume, and metadata.
+
+**Parameters**
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `category` | string | no | Filter markets by topic category. Omit for all categories. |
+| `limit` | number | no | Number of markets to return (1-50). Default: 20. |
+| `sort` | string | no | Sort order. 'volume' = highest traded, 'newest' = recently created, 'closing_soon' = ending soonest. Default: volume. |
+| `source` | string | no | Filter by platform. Omit to get markets from both Polymarket and Kalshi. |
+
+**Returns**
+
+- `question` -- the prediction market question (e.g. "Will Bitcoin reach $100k by December 2026?")
+- `outcomePrices` -- probability for each outcome as decimal (0.65 = 65% chance YES)
+- `volume` -- total trading volume in USD
+- `liquidity` -- current available liquidity in USD
+- `endDate` -- when the market resolves
+- `category` -- topic category (politics, crypto, sports, science, culture)
+- `active` -- whether the market is currently trading
+- `source` -- data source -- "polymarket" or "kalshi"
+
+Example response:
+
+```json
+{ markets: [{ question: "Will Trump win 2028?", outcomePrices: { "Yes": 0.42, "No": 0.58 }, volume: 15420000, liquidity: 890000, endDate: "2028-11-06", category: "politics", source: "polymarket" }] }
+```
+
+**Not for**: crypto price data (use `token_get_price`), crypto news (use `crypto_get_news`), stock prices (use `stock_get_quote`), DeFi yields (use `defi_find_best_yields`), Hyperliquid perp data (use `hyperliquid_get_market_data`).
+
+### `prediction_get_market_odds`
+
+Use this when you need detailed odds, probabilities, and trading data for a specific prediction market. Searches both Polymarket and Kalshi to find the best match by market ID or question text.
+
+**Parameters**
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `marketId` | string | no | Polymarket condition ID or Kalshi ticker. Use this if you already know the market ID. |
+| `query` | string | no | Search query to find a market by question text (e.g. 'bitcoin 100k', 'trump election'). Used when marketId is not known. |
+
+**Returns**
+
+- `question` -- the full prediction market question text
+- `outcomes` -- array of possible outcomes with their current probabilities
+- `outcomePrices` -- decimal probabilities per outcome (0.72 = 72% implied probability)
+- `volume` -- total all-time trading volume in USD
+- `volume24h` -- trading volume in the last 24 hours
+- `liquidity` -- current depth of the order book in USD
+- `endDate` -- resolution date of the market
+- `description` -- detailed market description and resolution criteria
+- `active` -- whether the market is currently open for trading
+- `source` -- which platform the market is from -- "polymarket" or "kalshi"
+
+Example response:
+
+```json
+{ question: "Will ETH flip BTC by 2027?", outcomes: ["Yes", "No"], outcomePrices: { "Yes": 0.08, "No": 0.92 }, volume: 2340000, volume24h: 45000, liquidity: 120000, endDate: "2027-12-31", active: true, source: "polymarket" }
+```
+
+**Not for**: crypto price data (use `token_get_price`), crypto news (use `crypto_get_news`), stock prices (use `stock_get_quote`), DeFi yields (use `defi_find_best_yields`), Hyperliquid perp data (use `hyperliquid_get_market_data`).
+
+### `prediction_trending_markets`
+
+Use this when you need to see what prediction markets are trending right now. Returns the hottest markets from both Polymarket and Kalshi ranked by recent trading volume and activity.
+
+**Parameters**
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `limit` | number | no | Number of trending markets to return (1-30). Default: 10. |
+| `source` | string | no | Filter by platform. Omit to get trending markets from both Polymarket and Kalshi. |
+
+**Returns**
+
+- `question` -- the market question
+- `probability` -- current implied probability for the leading outcome (decimal)
+- `volume24h` -- trading volume in the last 24 hours in USD
+- `totalVolume` -- all-time trading volume in USD
+- `priceChange24h` -- change in probability over the last 24 hours (e.g. +0.05 = probability rose 5%)
+- `category` -- topic category
+- `endDate` -- when the market resolves
+- `source` -- data source -- "polymarket" or "kalshi"
+
+Example response:
+
+```json
+{ trending: [{ question: "Will Fed cut rates in July 2026?", probability: 0.73, volume24h: 890000, totalVolume: 12500000, priceChange24h: 0.08, category: "politics", endDate: "2026-07-31", source: "polymarket" }] }
+```
+
+**Not for**: crypto price data (use `token_get_price`), crypto news (use `crypto_get_news`), stock prices (use `stock_get_quote`), DeFi yields (use `defi_find_best_yields`), Hyperliquid perp data (use `hyperliquid_get_market_data`).
+
+## Example agent prompts
+
+- "Browse active prediction markets or find betting odds on real-world events"
+- "Detailed odds, probabilities, and trading data for a specific prediction market"
+- "See what prediction markets are trending right now"
 
 ## Payment
 
-All endpoints are gated by x402 micropayments (USDC on Base L2). Agents pay automatically per call -- no API keys, no subscriptions.
+- Protocol: [x402](https://x402.org) -- HTTP-native pay-per-call, no signup, no API key
+- Network: Base L2 (`eip155:8453`)
+- Asset: USDC
+- Facilitator: Coinbase CDP (primary), PayAI (fallback)
+- Also reachable via [ATXP](https://atxp.ai) (OAuth-wrapped x402, RFC 9728 protected-resource metadata)
 
-## Related APIs
+## Part of klymax402
 
-- [Trust Score API](https://github.com/Br0ski777/trust-score-x402) -- Verify domain/wallet trust before interacting
-- [Token Price API](https://github.com/Br0ski777/token-price-x402) -- Real-time crypto token prices
-- [Crypto News API](https://github.com/Br0ski777/crypto-news-x402) -- Latest crypto news and sentiment
-- [DeFi Yields API](https://github.com/Br0ski777/defi-yields-x402) -- Best DeFi yield opportunities
-- [Hyperliquid API](https://github.com/Br0ski777/hyperliquid-x402) -- Perpetual futures market data
+100 x402 micropayment APIs for AI agents -- one wallet, USDC on Base, zero signup.
+
+- Catalog: https://klymax402.com/llms.txt
+- Full API reference: https://klymax402.com/llms-full.txt
+- Live stats: https://klymax402.com/stats
+
+## License
+
+MIT
