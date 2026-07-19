@@ -37,9 +37,9 @@ Any x402-aware client ([`@x402/fetch`](https://www.npmjs.com/package/@x402/fetch
 
 | Tool | Method | Path | Price | Description |
 |---|---|---|---|---|
-| `prediction_list_markets` | POST | `/api/markets` | $0.005 | List active prediction markets from Polymarket and Kalshi with current odds, volume, and categories. Filter by topic, platform, and sort by volume, newest, or closing soon. |
-| `prediction_get_market_odds` | POST | `/api/odds` | $0.005 | Get detailed odds and trading data for a specific prediction market by ID or search query. Searches both Polymarket and Kalshi. |
-| `prediction_trending_markets` | POST | `/api/trending` | $0.003 | Top trending prediction markets from Polymarket and Kalshi ranked by volume and engagement. |
+| `prediction_list_markets` | POST | `/api/markets` | $0.012 | List active prediction markets from Polymarket and Kalshi with current odds, volume, and categories. Filter by topic, platform, and sort by volume, newest, or closing soon. |
+| `prediction_get_market_odds` | POST | `/api/odds` | $0.012 | Get detailed odds and trading data for a specific prediction market by ID or search query. Searches both Polymarket and Kalshi. |
+| `prediction_trending_markets` | POST | `/api/trending` | $0.008 | Top trending prediction markets from Polymarket and Kalshi ranked by volume and engagement. |
 
 ### `prediction_list_markets`
 
