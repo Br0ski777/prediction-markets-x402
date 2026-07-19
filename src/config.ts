@@ -9,7 +9,7 @@ export const API_CONFIG: ApiConfig = {
     {
       method: "POST",
       path: "/api/markets",
-      price: "$0.005",
+      price: "$0.012",
       description: "List active prediction markets from Polymarket and Kalshi with current odds, volume, and categories. Filter by topic, platform, and sort by volume, newest, or closing soon.",
       toolName: "prediction_list_markets",
       toolDescription:
@@ -104,7 +104,7 @@ Do NOT use for crypto price data -- use token_get_price instead. Do NOT use for 
     {
       method: "POST",
       path: "/api/odds",
-      price: "$0.005",
+      price: "$0.012",
       description: "Get detailed odds and trading data for a specific prediction market by ID or search query. Searches both Polymarket and Kalshi.",
       toolName: "prediction_get_market_odds",
       toolDescription:
@@ -176,7 +176,7 @@ Do NOT use for crypto price data -- use token_get_price instead. Do NOT use for 
     {
       method: "POST",
       path: "/api/trending",
-      price: "$0.003",
+      price: "$0.008",
       description: "Top trending prediction markets from Polymarket and Kalshi ranked by volume and engagement.",
       toolName: "prediction_trending_markets",
       toolDescription:
